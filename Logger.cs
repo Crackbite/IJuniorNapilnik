@@ -1,17 +1,53 @@
-using System;
+﻿using System;
 using System.IO;
 
-namespace Lesson
+namespace IJuniorNapilnik
 {
-    class Program
+    internal interface ILogger
     {
-        static void Main(string[] args)
-        {
+        void WriteError(string message);
+    }
 
+    internal static class Logger
+    {
+        public static void TestSystem()
+        {
+            var pathfinder = new Pathfinder(new FileLogWritter());
+            pathfinder.Find("Пишет лог в файл");
+
+            pathfinder = new Pathfinder(new ConsoleLogWritter());
+            pathfinder.Find("Пишет лог в консоль");
+
+            pathfinder = new Pathfinder(new SecureLogWritter(new FileLogWritter()));
+            pathfinder.Find("Пишет лог в файл по пятницам");
+
+            pathfinder = new Pathfinder(new SecureLogWritter(new ConsoleLogWritter()));
+            pathfinder.Find("Пишет лог в консоль по пятницам");
+
+            pathfinder = new Pathfinder(new ConsoleLogWritter(), new SecureLogWritter(new FileLogWritter()));
+            pathfinder.Find("Пишет лог в консоль а по пятницам ещё и в файл");
         }
     }
 
-    class ConsoleLogWritter
+    internal class SecureLogWritter : ILogger
+    {
+        private readonly ILogger _logger;
+
+        public SecureLogWritter(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public void WriteError(string message)
+        {
+            if (DateTime.Now.DayOfWeek == DayOfWeek.Friday)
+            {
+                _logger.WriteError(message);
+            }
+        }
+    }
+
+    internal class ConsoleLogWritter : ILogger
     {
         public virtual void WriteError(string message)
         {
@@ -19,21 +55,40 @@ namespace Lesson
         }
     }
 
-    class FileLogWritter
+    internal class FileLogWritter : ILogger
     {
+        private readonly string _fileName;
+
+        public FileLogWritter(string fileName = "log.txt")
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ArgumentNullException(nameof(fileName));
+            }
+
+            _fileName = fileName;
+        }
+
         public virtual void WriteError(string message)
         {
-            File.WriteAllText("log.txt", message);
+            File.WriteAllText(_fileName, message);
         }
     }
 
-    class SecureConsoleLogWritter : ConsoleLogWritter
+    internal class Pathfinder
     {
-        public override void WriteError(string message)
+        private readonly ILogger[] _logger;
+
+        public Pathfinder(params ILogger[] logger)
         {
-            if (DateTime.Now.DayOfWeek == DayOfWeek.Friday)
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        public void Find(string message)
+        {
+            foreach (ILogger logger in _logger)
             {
-                base.WriteError(message);
+                logger.WriteError(message);
             }
         }
     }
