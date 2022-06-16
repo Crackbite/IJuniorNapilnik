@@ -1,4 +1,4 @@
-public static int MakeValidNumber(int a, int b, int c)
+public static int GetValidNumber(int a, int b, int c)
 {
     if (a < b)
         return b;
