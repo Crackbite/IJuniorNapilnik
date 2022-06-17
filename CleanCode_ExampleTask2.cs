@@ -1,4 +1,4 @@
-public static int Rummage(int[] array, int element)
+public static int GetIndexOf(int[] array, int element)
 {
     for (int i = 0; i < array.Length; i++)
         if (array[i] == element)
