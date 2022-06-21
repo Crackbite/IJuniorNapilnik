@@ -1,4 +1,4 @@
-public static void SetNewObject()
+public static void CreateObjectOnMap()
 {
     //Создание объекта на карте
 }
@@ -8,7 +8,7 @@ public static void SetChance()
     _chance = Random.Range(0, 100);
 }
 
-public static int SetSalary(int hoursWorked)
+public static int GetSalary(int hoursWorked)
 {
     return _hourlyRate * hoursWorked;
 }
