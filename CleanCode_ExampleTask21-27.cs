@@ -1,45 +1,106 @@
-private void checkButton_Click(object sender, EventArgs e)
+private static AccessResult ProvideAccessToBulletin(string passport)
+{
+    var connectionString =
+        $"Data Source={Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}\\db.sqlite";
+    var connection = new SQLiteConnection(connectionString);
+
+    try
     {
-      if (this.passportTextbox.Text.Trim() == "")
-      {
-        int num1 = (int) MessageBox.Show("Введите серию и номер паспорта");
-      }
-      else
-      {
-        string rawData = this.passportTextbox.Text.Trim().Replace(" ", string.Empty);
-        if (rawData.Length < 10)
+        connection.Open();
+
+        var commandText = $"select * from passports where num='{ComputeSha256Hash(passport)}' limit 1;";
+        var dataAdapter = new SQLiteDataAdapter(new SQLiteCommand(commandText, connection));
+
+        var dataTable = new DataTable();
+        dataAdapter.Fill(dataTable);
+
+        AccessResult accessResult;
+        string messageText;
+
+        if (dataTable.Rows.Count > 0)
         {
-          this.textResult.Text = "Неверный формат серии или номера паспорта";
+            var accessGranted = Convert.ToBoolean(dataTable.Rows[0].ItemArray[1]);
+
+            messageText = $"По паспорту «{passport}» доступ к бюллетеню на "
+                          + "дистанционном электронном голосовании "
+                          + (accessGranted ? "ПРЕДОСТАВЛЕН" : "НЕ ПРЕДОСТАВЛЯЛСЯ");
+
+            accessResult = new AccessResult(accessGranted, new AccessMessage(messageText));
         }
         else
         {
-          string commandText = string.Format("select * from passports where num='{0}' limit 1;", (object) Form1.ComputeSha256Hash(rawData));
-          string connectionString = string.Format("Data Source=" + Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) + "\\db.sqlite");
-          try
-          {
-            SQLiteConnection connection = new SQLiteConnection(connectionString);
-            connection.Open();
-            SQLiteDataAdapter sqLiteDataAdapter = new SQLiteDataAdapter(new SQLiteCommand(commandText, connection));
-            DataTable dataTable1 = new DataTable();
-            DataTable dataTable2 = dataTable1;
-            sqLiteDataAdapter.Fill(dataTable2);
-            if (dataTable1.Rows.Count > 0)
-            {
-              if (Convert.ToBoolean(dataTable1.Rows[0].ItemArray[1]))
-                this.textResult.Text = "По паспорту «" + this.passportTextbox.Text + "» доступ к бюллетеню на дистанционном электронном голосовании ПРЕДОСТАВЛЕН";
-              else
-                this.textResult.Text = "По паспорту «" + this.passportTextbox.Text + "» доступ к бюллетеню на дистанционном электронном голосовании НЕ ПРЕДОСТАВЛЯЛСЯ";
-            }
-            else
-              this.textResult.Text = "Паспорт «" + this.passportTextbox.Text + "» в списке участников дистанционного голосования НЕ НАЙДЕН";
-            connection.Close();
-          }
-          catch (SQLiteException ex)
-          {
-            if (ex.ErrorCode != 1)
-              return;
-            int num2 = (int) MessageBox.Show("Файл db.sqlite не найден. Положите файл в папку вместе с exe.");
-          }
+            messageText = $"Паспорт «{passport}» в списке участников дистанционного голосования НЕ НАЙДЕН";
+            accessResult = new AccessResult(false, new AccessMessage(messageText));
         }
-      }
+
+        return accessResult;
     }
+    catch (SQLiteException ex)
+    {
+        string messageText = ex.ErrorCode != 1
+                                 ? ex.Message
+                                 : "Файл db.sqlite не найден. Положите файл в папку вместе с exe.";
+
+        return new AccessResult(false, new AccessMessage(messageText, true));
+    }
+    finally
+    {
+        connection.Close();
+    }
+}
+
+private void checkButton_Click(object sender, EventArgs e)
+{
+    string passport = passportTextbox.Text.Trim();
+
+    if (string.IsNullOrWhiteSpace(passport))
+    {
+        MessageBox.Show("Введите серию и номер паспорта");
+        return;
+    }
+
+    passport = passport.Replace(" ", string.Empty);
+
+    if (passport.Length < 10)
+    {
+        textResult.Text = "Неверный формат серии или номера паспорта";
+        return;
+    }
+
+    AccessResult accessResult = ProvideAccessToBulletin(passport);
+
+    if (accessResult.Success == false && accessResult.Message.IsMessageBox)
+    {
+        MessageBox.Show(accessResult.Message.Text);
+    }
+    else
+    {
+        textResult.Text = accessResult.Message.Text;
+    }
+}
+
+internal class AccessResult
+{
+    public AccessResult(bool success, AccessMessage message)
+    {
+        Success = success;
+        Message = message ?? throw new ArgumentNullException(nameof(message));
+    }
+
+    public AccessMessage Message { get; }
+
+    public bool Success { get; }
+}
+
+internal class AccessMessage
+{
+    public AccessMessage(string text, bool isMessageBox = false)
+    {
+        Text = text;
+        IsMessageBox = isMessageBox;
+    }
+
+    public bool IsMessageBox { get; }
+
+    public string Text { get; }
+}
